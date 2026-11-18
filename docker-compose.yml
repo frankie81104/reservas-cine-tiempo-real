@@ -3,13 +3,13 @@ services:
     build: ./gateway
     ports:
       - "8080:8080"
+    volumes:
+      - ./frontend-cine/public:/usr/share/nginx/html:ro
     depends_on:
       servicio-funciones:
         condition: service_healthy
       servicio-asientos:
         condition: service_healthy
-      mock-websocket:
-        condition: service_started
     networks:
       - red-interna
     healthcheck:
@@ -22,89 +22,87 @@ services:
     build: ./services/funciones
     container_name: servicio-funciones
     environment:
-      - DB_HOST=db-funciones
-      - DB_PORT=3306
-      - DB_USER=funciones_user      # <-- CORREGIDO
-      - DB_PASSWORD=funciones_pass  # <-- CORREGIDO
-      - DB_NAME=funciones_db
-      - JWT_SECRET=mi-secreto-compartido-2026 # <-- COINCIDE CON TUS .ENV
+      PORT: "3002"
+      DB_HOST: db-funciones
+      DB_PORT: "3306"
+      DB_USER: funciones_user
+      DB_PASSWORD: funciones_pass
+      DB_NAME: funciones_db
+      JWT_SECRET: mi-secreto-compartido-2026
     depends_on:
       db-funciones:
         condition: service_healthy
     networks:
       - red-interna
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/api/funciones/health').then(r=>{if(!r.ok)throw 1})"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/api/funciones/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s # <-- AGREGADO para dar tiempo a Node a arrancar
+      start_period: 15s
 
   db-funciones:
     image: mysql:8.0
     container_name: db-funciones
     environment:
-      - MYSQL_ROOT_PASSWORD=rootpass
-      - MYSQL_DATABASE=funciones_db
-      - MYSQL_USER=funciones_user   # <-- CORREGIDO (era DB_USER)
-      - MYSQL_PASSWORD=funciones_pass # <-- CORREGIDO (era DB_PASSWORD)
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: funciones_db
+      MYSQL_USER: funciones_user
+      MYSQL_PASSWORD: funciones_pass
     volumes:
-      - ./services/funciones/db:/docker-entrypoint-initdb.d
+      - ./services/funciones/db:/docker-entrypoint-initdb.d:ro
       - db_data_funciones:/var/lib/mysql
     networks:
       - red-interna
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"] # <-- USAR ROOT PARA EL PING
-      interval: 10s
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 -u\"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT id FROM funciones LIMIT 1' >/dev/null"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 30s
 
   servicio-asientos:
     build: ./services/asientos
     container_name: servicio-asientos
     environment:
-      - DB_HOST=db-asientos
-      - DB_PORT=3306
-      - DB_USER=asientos_user       # <-- CORREGIDO
-      - DB_PASSWORD=asientos_pass   # <-- CORREGIDO
-      - DB_NAME=asientos_db
-      - JWT_SECRET=mi-secreto-compartido-2026 # <-- COINCIDE CON TUS .ENV
+      PORT: "3001"
+      DB_HOST: db-asientos
+      DB_PORT: "3306"
+      DB_USER: asientos_user
+      DB_PASSWORD: asientos_pass
+      DB_NAME: asientos_db
+      JWT_SECRET: mi-secreto-compartido-2026
     depends_on:
       db-asientos:
         condition: service_healthy
     networks:
       - red-interna
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/asientos/health').then(r=>{if(!r.ok)throw 1})"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/asientos/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s # <-- AGREGADO
+      start_period: 15s
 
   db-asientos:
     image: mysql:8.0
     container_name: db-asientos
     environment:
-      - MYSQL_ROOT_PASSWORD=rootpass
-      - MYSQL_DATABASE=asientos_db
-      - MYSQL_USER=asientos_user    # <-- CORREGIDO
-      - MYSQL_PASSWORD=asientos_pass # <-- CORREGIDO
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: asientos_db
+      MYSQL_USER: asientos_user
+      MYSQL_PASSWORD: asientos_pass
     volumes:
-      - ./services/asientos/db:/docker-entrypoint-initdb.d
+      - ./services/asientos/db:/docker-entrypoint-initdb.d:ro
       - db_data_asientos:/var/lib/mysql
     networks:
       - red-interna
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"] # <-- USAR ROOT PARA EL PING
-      interval: 10s
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql --protocol=TCP -h 127.0.0.1 -u\"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT id FROM asientos LIMIT 1' >/dev/null"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-
-  mock-websocket:
-    build: ./mocks/websocket
-    container_name: mock-websocket
-    networks:
-      - red-interna
+      retries: 12
+      start_period: 30s
 
 networks:
   red-interna:
