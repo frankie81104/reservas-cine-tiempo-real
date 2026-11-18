@@ -20,7 +20,6 @@ services:
 
   servicio-funciones:
     build: ./services/funciones
-    container_name: servicio-funciones
     environment:
       PORT: "3002"
       DB_HOST: db-funciones
@@ -43,7 +42,6 @@ services:
 
   db-funciones:
     image: mysql:8.0
-    container_name: db-funciones
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: funciones_db
@@ -63,7 +61,6 @@ services:
 
   servicio-asientos:
     build: ./services/asientos
-    container_name: servicio-asientos
     environment:
       PORT: "3001"
       DB_HOST: db-asientos
@@ -86,7 +83,6 @@ services:
 
   db-asientos:
     image: mysql:8.0
-    container_name: db-asientos
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: asientos_db
