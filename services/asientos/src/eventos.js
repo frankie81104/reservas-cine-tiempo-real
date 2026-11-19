@@ -1,9 +1,4 @@
-// Bus de eventos interno del servicio.
-// La parte de REST (Persona B) publica acá cada cambio de un asiento y el servidor
-// WebSocket (Persona C) se suscribe:  eventos.on('cambio', (mensaje) => ...)
-//
-// Cada mensaje ya tiene el formato de los mensajes WebSocket del contrato (docs/openapi-cine.yaml),
-// más `funcionId`, que el servidor WebSocket necesita para saber a qué sala avisar.
+
 const { EventEmitter } = require('events');
 
 const eventos = new EventEmitter();

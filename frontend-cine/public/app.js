@@ -1,8 +1,3 @@
-/*
- * Frontend de reservas de cine - JavaScript nativo.
- * Contrato de referencia: openapi-cine.yaml
- * Configuración principal: API_BASE.
- */
 
 import { leerSesion, borrarSesion, irAlLogin } from './sesion.js';
 

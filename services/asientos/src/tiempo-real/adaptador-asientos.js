@@ -1,23 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-// Único acceso de tiempo real a los módulos existentes de Asientos.
-// app.js exporta una app Express montable y carga .env. Su GET de grilla acepta
-// funcionId entero positivo y pasa por el middleware que establece req.usuario.
 const appAsientos = require('../app');
-// auth.js exporta middleware Bearer (req, res, next). Usa HS256, JWT_SECRET y un
-// sub no vacío. El upgrade usa las mismas reglas con el token de la consulta.
+
 const autenticarHttp = require('../auth');
-// eventos.js expone un EventEmitter. Publica 'cambio' después de escribir, con
-// funcionId, asientoId, fila, numero, version y los campos del mensaje OpenAPI.
-// mensajes.liberado(asiento, motivo) recibe id, funcionId, fila, numero y version
-// del asiento y devuelve el mensaje de liberación con ese motivo.
+
 const eventos = require('../eventos');
-// db.js exporta el pool mysql2/promise en UTC. execute(sql, params) devuelve
-// [filas, campos] o [resultado, campos]. Los UPDATE usan autocommit y cada
-// transición de asientos incrementa version. end() libera el pool del proceso.
-const pool = require('../db');
-// bloqueo.js exporta obtenerGrilla(funcionId), un array de Asiento. Los
-// bloqueos vencidos se leen como libres y una función sin filas se trata como ausente.
+
+
 const { obtenerGrilla } = require('../bloqueo');
 
 function configuracion() {
@@ -47,8 +36,7 @@ function validarToken(token) {
   }
 }
 
-// Entrega cambios con funcionId para el ruteo interno y devuelve la baja del oyente.
-// El benchmark puede suscribirse primero para medir antes de la verificación.
+
 function suscribirCambios(oyente, { primero = false } = {}) {
   if (primero) eventos.prependListener('cambio', oyente);
   else eventos.on('cambio', oyente);
@@ -75,9 +63,6 @@ const estados = {
   asiento_vendido: 'vendido',
 };
 
-// asientos conserva la fila actual, con id como clave, funcion_id y los datos
-// públicos del asiento. bloqueado_hasta es Date o null en el pool de Asientos.
-// La lectura REST ocurre después de su UPDATE y puede ver una transición posterior.
 async function verificarCambio(mensaje) {
   const [[fila]] = await pool.execute(
     'SELECT funcion_id, fila, numero, estado, bloqueado_hasta, version FROM asientos WHERE id = ?',

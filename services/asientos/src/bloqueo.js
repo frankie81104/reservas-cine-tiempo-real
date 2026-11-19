@@ -1,6 +1,4 @@
-// Lógica de asientos. Acá está lo importante del tema de concurrencia:
-// cada cambio de estado es UN SOLO UPDATE con la condición en el WHERE.
-// La base de datos decide quién gana, de forma atómica: no hay "leer y después escribir".
+
 const pool = require('./db');
 
 const SEGUNDOS_BLOQUEO = Number(process.env.SEGUNDOS_BLOQUEO) || 60;
@@ -35,8 +33,7 @@ async function obtenerGrilla(funcionId) {
   return filas.map(aAsiento);
 }
 
-// Pasa a "bloqueado" solo si está libre, o si su bloqueo anterior ya venció.
-// Devuelve true si lo ganó este usuario (1 fila afectada) y false si no.
+
 async function bloquearAsiento(asientoId, usuarioId) {
   const [res] = await pool.execute(
     `UPDATE asientos
@@ -74,9 +71,7 @@ async function confirmarAsiento(asientoId, usuarioId) {
   return res.affectedRows === 1;
 }
 
-// Libera los bloqueos vencidos. Devuelve los asientos liberados para poder avisar por WebSocket.
-// Cada asiento se libera con su propio UPDATE condicionado, así no pisa a alguien que
-// justo volvió a bloquearlo entre el SELECT y el UPDATE.
+
 async function liberarVencidos() {
   const [vencidos] = await pool.execute(
     `SELECT id, funcion_id, fila, numero, version

@@ -8,10 +8,9 @@ const pool = mysql.createPool({
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'asientos_db',
   connectionLimit: 20,
-  timezone: 'Z', // las fechas DATETIME se interpretan como UTC
+  timezone: 'Z', 
 });
 
-// Cada conexión trabaja en UTC, así NOW() de la base y las fechas de Node coinciden.
 pool.pool.on('connection', (conn) => conn.query("SET time_zone = '+00:00'"));
 
 module.exports = pool;
