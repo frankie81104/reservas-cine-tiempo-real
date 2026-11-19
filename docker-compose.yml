@@ -1,3 +1,5 @@
+x-jwt-secret: &jwt-secret "${JWT_SECRET:-mi-secreto-compartido-2026}"
+
 services:
   gateway:
     build: ./gateway
@@ -6,6 +8,8 @@ services:
     volumes:
       - ./frontend-cine/public:/usr/share/nginx/html:ro
     depends_on:
+      frontend-cine:
+        condition: service_healthy
       servicio-funciones:
         condition: service_healthy
       servicio-asientos:
@@ -18,6 +22,19 @@ services:
       timeout: 5s
       retries: 5
 
+  frontend-cine:
+    build: ./frontend-cine
+    environment:
+      JWT_SECRET: *jwt-secret
+    networks:
+      - red-interna
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login.html').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   servicio-funciones:
     build: ./services/funciones
     environment:
@@ -27,7 +44,7 @@ services:
       DB_USER: funciones_user
       DB_PASSWORD: funciones_pass
       DB_NAME: funciones_db
-      JWT_SECRET: mi-secreto-compartido-2026
+      JWT_SECRET: *jwt-secret
     depends_on:
       db-funciones:
         condition: service_healthy
@@ -68,7 +85,7 @@ services:
       DB_USER: asientos_user
       DB_PASSWORD: asientos_pass
       DB_NAME: asientos_db
-      JWT_SECRET: mi-secreto-compartido-2026
+      JWT_SECRET: *jwt-secret
     depends_on:
       db-asientos:
         condition: service_healthy

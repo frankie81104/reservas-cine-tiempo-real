@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#101522">
   <title>Cine en tiempo real | Versión polling</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <script type="module" src="app.js"></script>
 </head>
-<body>
+<body hidden>
   <header class="topbar">
     <a class="brand" href="index.html" aria-label="Cine en tiempo real, inicio">
       <span class="brand-mark">C</span>
@@ -17,6 +17,10 @@
     <div class="topbar-right">
       <span id="connectionStatus" class="status-pill status-idle"><span class="status-dot"></span><span id="connectionText">Sin conectar</span></span>
       <span class="mode-label">MODO POLLING</span>
+      <div class="cuenta">
+        <span id="currentUser" aria-label="Usuario"></span>
+        <button id="logout" class="text-button" type="button">Cerrar sesión</button>
+      </div>
     </div>
   </header>
 
@@ -30,24 +34,7 @@
       <a class="mode-switch" href="index.html">Volver a WebSocket <span aria-hidden="true">→</span></a>
     </section>
 
-    <section id="tokenPanel" class="panel token-panel">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">AUTENTICACIÓN DE PRUEBA</p>
-          <h2>Conectá tu usuario</h2>
-        </div>
-        <span class="step-number">01</span>
-      </div>
-      <p class="muted">La API requiere un JWT. Pegá el token de prueba que te proporcione el backend. Esta aplicación lo conserva solamente en la sesión actual del navegador.</p>
-      <form id="tokenForm" class="token-form">
-        <label class="sr-only" for="tokenInput">Token JWT</label>
-        <input id="tokenInput" type="password" autocomplete="off" placeholder="Pegá aquí tu token JWT" required>
-        <button class="button button-primary" type="submit">Conectar</button>
-      </form>
-      <p class="tiny-note">No uses tokens reales de producción en esta versión de demostración.</p>
-    </section>
-
-    <section id="application" class="app-layout hidden">
+    <section id="application" class="app-layout">
       <aside class="sidebar">
         <section class="panel function-panel">
           <div class="panel-heading compact">
@@ -122,7 +109,6 @@
 
     <footer class="footer">
       <span>Proyecto académico · Comparación WebSocket vs polling</span>
-      <button id="changeToken" class="text-button hidden" type="button">Cambiar token</button>
     </footer>
   </main>
 
