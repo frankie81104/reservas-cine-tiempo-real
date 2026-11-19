@@ -1,10 +1,10 @@
-/*
- * Frontend de reservas de cine - JavaScript nativo.
- * Contrato de referencia: openapi-cine.yaml
- * Configuración principal: API_BASE.
- */
 
-const API_BASE = (window.CINE_API_BASE || 'http://localhost:8080').replace(/\/+$/, '');
+import { leerSesion, borrarSesion, irAlLogin } from './sesion.js';
+
+const gateway = new URL(window.location.origin);
+// La ejecución directa de frontend-cine/server.js usa 3000 y el gateway usa 8080.
+if (gateway.port === '3000') gateway.port = '8080';
+const API_BASE = (window.CINE_API_BASE || gateway.origin).replace(/\/+$/, '');
 const PAGE_MODE = document.documentElement.dataset.mode === 'polling' ? 'polling' : 'websocket';
 const POLLING_INTERVAL_MS = 2000;
 const METRICS_INTERVAL_MS = 10000;
@@ -12,10 +12,8 @@ const INITIAL_RECONNECT_DELAY_MS = 1000;
 const MAX_RECONNECT_DELAY_MS = 30000;
 
 const elements = {
-  tokenPanel: document.getElementById('tokenPanel'),
-  tokenForm: document.getElementById('tokenForm'),
-  tokenInput: document.getElementById('tokenInput'),
-  application: document.getElementById('application'),
+  currentUser: document.getElementById('currentUser'),
+  logout: document.getElementById('logout'),
   connectionStatus: document.getElementById('connectionStatus'),
   connectionText: document.getElementById('connectionText'),
   functionSelect: document.getElementById('functionSelect'),
@@ -35,7 +33,6 @@ const elements = {
   pollingRequests: document.getElementById('pollingRequests'),
   metricsNote: document.getElementById('metricsNote'),
   refreshMetrics: document.getElementById('refreshMetrics'),
-  changeToken: document.getElementById('changeToken'),
   toastRegion: document.getElementById('toastRegion')
 };
 
@@ -54,6 +51,7 @@ const state = {
   pollingInFlight: false,
   metricsTimer: null,
   countdownTimer: null,
+  expiryTimer: null,
   expiredLockRefreshRequested: false
 };
 
@@ -71,7 +69,7 @@ function apiUrl(path) {
 }
 
 async function apiRequest(path, options = {}) {
-  if (!state.token) throw new Error('Falta el token de autenticación.');
+  if (!state.token) throw new Error('Iniciá sesión para continuar.');
 
   const headers = new Headers(options.headers || {});
   headers.set('Authorization', `Bearer ${state.token}`);
@@ -86,6 +84,10 @@ async function apiRequest(path, options = {}) {
     throw new Error('No se pudo conectar con el gateway. Revisá que esté iniciado y que la URL sea correcta.');
   }
 
+  if (response.status === 401) {
+    salir(true);
+    throw new Error('Volvé a iniciar sesión.');
+  }
   if (response.status === 204) return null;
 
   let payload = null;
@@ -102,20 +104,6 @@ async function apiRequest(path, options = {}) {
     throw new ApiError(response.status, payload);
   }
   return payload;
-}
-
-function decodeJwtSubject(token) {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const bytes = Uint8Array.from(atob(padded), character => character.charCodeAt(0));
-    const payload = JSON.parse(new TextDecoder().decode(bytes));
-    return typeof payload.sub === 'string' ? payload.sub : null;
-  } catch {
-    return null;
-  }
 }
 
 function setConnectionState(kind, message) {
@@ -523,8 +511,7 @@ function connectWebSocket() {
     state.socket = null;
     if (state.manuallyStoppedSocket) return;
     if (event.code === 1008) {
-      setConnectionState('error', 'Token inválido o vencido');
-      setFeedback('El servidor rechazó la autenticación del WebSocket (código 1008). Revisá el JWT.', 'error');
+      salir(true);
       return;
     }
     if (event.code === 1000) {
@@ -692,60 +679,49 @@ function startMetricsRefresh() {
   state.metricsTimer = window.setInterval(refreshMetrics, METRICS_INTERVAL_MS);
 }
 
-function enterApplication(token) {
-  state.token = token.trim();
-  state.userSub = decodeJwtSubject(state.token);
-  sessionStorage.setItem('cine_demo_token', state.token);
-  elements.tokenPanel.classList.add('hidden');
-  elements.application.classList.remove('hidden');
-  elements.changeToken.classList.remove('hidden');
-  elements.tokenInput.value = '';
-  if (!state.userSub) {
-    showToast('No se pudo leer el claim sub del JWT. Podrás consultar la grilla, pero no identificar visualmente tus bloqueos.', 'error');
-  }
-  loadFunctions();
-  startMetricsRefresh();
-}
-
-function leaveApplication() {
-  stopRealtime();
-  if (state.metricsTimer) window.clearInterval(state.metricsTimer);
-  if (state.countdownTimer) window.clearInterval(state.countdownTimer);
-  sessionStorage.removeItem('cine_demo_token');
+function salir(vencida = false) {
+  if (!state.token) return;
   state.token = '';
   state.userSub = null;
-  state.functions = [];
-  state.selectedFunctionId = null;
-  state.seats = [];
-  state.activeOwnedSeatId = null;
-  elements.application.classList.add('hidden');
-  elements.tokenPanel.classList.remove('hidden');
-  elements.changeToken.classList.add('hidden');
-  elements.tokenInput.focus();
-  setConnectionState('idle', 'Sin conectar');
+  document.body.hidden = true;
+  stopRealtime();
+  window.clearInterval(state.metricsTimer);
+  window.clearInterval(state.countdownTimer);
+  window.clearTimeout(state.expiryTimer);
+  borrarSesion();
+  irAlLogin(PAGE_MODE, vencida);
 }
 
 function initialize() {
-  elements.tokenForm.addEventListener('submit', event => {
-    event.preventDefault();
-    const token = elements.tokenInput.value.trim();
-    if (!token) return;
-    enterApplication(token);
-  });
-
-  elements.functionSelect.addEventListener('change', event => {
-    selectFunction(event.target.value);
-  });
+  const sesion = leerSesion();
+  if (!sesion) {
+    irAlLogin(PAGE_MODE);
+    return;
+  }
+  state.token = sesion.token;
+  state.userSub = sesion.usuario;
+  elements.currentUser.textContent = sesion.usuario;
+  elements.logout.addEventListener('click', () => salir());
+  elements.functionSelect.addEventListener('change', event => selectFunction(event.target.value));
   elements.reloadFunctions.addEventListener('click', loadFunctions);
   elements.confirmButton.addEventListener('click', confirmOwnedSeat);
   elements.releaseButton.addEventListener('click', releaseOwnedSeat);
   elements.refreshMetrics.addEventListener('click', refreshMetrics);
-  elements.changeToken.addEventListener('click', leaveApplication);
 
+  // Al volver con Atrás, cargar la identidad actual antes de mostrar una sala anterior.
+  window.addEventListener('pagehide', () => {
+    document.body.hidden = true;
+    stopRealtime();
+  });
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) window.location.reload();
+  });
+
+  state.expiryTimer = window.setTimeout(() => salir(true), sesion.exp * 1000 - Date.now());
   state.countdownTimer = window.setInterval(updateCountdown, 1000);
-
-  const savedToken = sessionStorage.getItem('cine_demo_token');
-  if (savedToken) enterApplication(savedToken);
+  document.body.hidden = false;
+  loadFunctions();
+  startMetricsRefresh();
 }
 
-document.addEventListener('DOMContentLoaded', initialize);
+initialize();
